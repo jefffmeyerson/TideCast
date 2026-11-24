@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TideCast - Coastal Tide & Hourly Weather Dashboard</title>
+
+    <!-- Standalone Mobile App (PWA) Meta Tags for iOS & Android -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TideCast">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#020617">
+
+    <!-- Custom Inline SVG Ocean Wave App Icon for Home Screen & Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2306b6d4'/%3E%3Cstop offset='100%25' stop-color='%232563eb'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Cpath d='M96 290c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56zm0-92c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56z' fill='%23ffffff'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2306b6d4'/%3E%3Cstop offset='100%25' stop-color='%232563eb'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Cpath d='M96 290c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56zm0-92c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56z' fill='%23ffffff'/%3E%3C/svg%3E">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ocean: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0369a1',
+                            950: '#082f49'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js for Tide & Temperature Curves -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-slate-950">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-col md:flex-row items-center justify-between gap-3.5">
+            
+            <!-- Logo & Title -->
+            <div class="flex items-center justify-between w-full md:w-auto">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white text-xl">
+                        <i class="fa-solid fa-water"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 bg-clip-text text-transparent">TideCast</h1>
+                        <p class="text-xs text-slate-400">Coastal Tides & Hourly Weather</p>
+                    </div>
+                </div>
+
+                <!-- Mobile Quick Action: Install / App Info Button -->
+                <button id="mobileInstallBtn" onclick="triggerAppInstall()" class="md:hidden px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-xs font-medium text-cyan-300 flex items-center gap-1.5 active:scale-95 transition-transform">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                    <span>Install App</span>
+                </button>
+            </div>
+
+            <!-- Search Bar, GPS Near Me & Unit Toggle -->
+            <div class="flex flex-col sm:flex-row items-center gap-2.5 w-full md:w-auto">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <div class="relative flex-1 sm:w-72">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                        </span>
+                        <input type="text" id="citySearchInput" placeholder="Search city (e.g., Matlacha FL)..." 
+                               class="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all shadow-inner">
+                        <div id="suggestionsBox" class="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl hidden max-h-60 overflow-y-auto custom-scrollbar"></div>
+                    </div>
+
+                    <!-- GPS Near Me Button -->
+                    <button id="gpsLocateBtn" onclick="locateMyDevice()" title="Use Current GPS Location" class="px-3.5 py-2.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 active:bg-cyan-600/40 border border-cyan-500/40 text-cyan-300 text-sm font-medium flex items-center gap-1.5 shrink-0 transition-all">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span class="hidden sm:inline text-xs font-semibold">Near Me</span>
+                    </button>
+                </div>
+
+                <!-- Unit Toggle & Desktop Install Button -->
+                <div class="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                    <div class="flex items-center bg-slate-950/80 border border-slate-700/80 rounded-xl p-1 shrink-0">
+                        <button id="unitImperialBtn" onclick="setUnits('imperial')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 text-white shadow transition-all">°F / ft / mph</button>
+                        <button id="unitMetricBtn" onclick="setUnits('metric')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all">°C / m / km/h</button>
+                    </div>
+                    <button id="desktopInstallBtn" onclick="triggerAppInstall()" class="hidden md:flex px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-cyan-300 items-center gap-1.5 transition-all">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                        <span>Install App</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Secondary Subheader: Popular Hubs & Module Checkboxes -->
+        <div class="border-t border-slate-800/60 bg-slate-900/40 px-4 py-2.5">
+            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+                
+                <!-- Popular Coastal Hubs + Saved Favorites -->
+                <div id="hubsBarContainer" class="flex items-center gap-2 overflow-x-auto custom-scrollbar py-1">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider shrink-0"><i class="fa-solid fa-star text-cyan-400 mr-1"></i> Hubs:</span>
+                    <button onclick="loadPresetCity('Matlacha', 26.6277, -82.0729, 'Matlacha, FL')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-cyan-300 transition-all shrink-0">Matlacha, FL</button>
+                    <button onclick="loadPresetCity('Naples', 26.142, -81.7948, 'Naples, FL')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-slate-300 transition-all shrink-0">Naples, FL</button>
+                    <button onclick="loadPresetCity('Point Pleasant', 40.089, -74.0575, 'Point Pleasant, NJ')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-slate-300 transition-all shrink-0">Point Pleasant, NJ</button>
+                    <button onclick="loadPresetCity('Clayton', 35.651, -78.456, 'Clayton, NC')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-slate-300 transition-all shrink-0">Clayton, NC</button>
+                    <button onclick="loadPresetCity('San Diego', 32.7157, -117.1611, 'San Diego, CA')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-slate-300 transition-all shrink-0">San Diego, CA</button>
+                    <button onclick="loadPresetCity('Seattle', 47.6062, -122.3321, 'Seattle, WA')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950/60 border border-slate-700 text-xs font-medium text-slate-300 transition-all shrink-0">Seattle, WA</button>
+                    <div id="customSavedHubs" class="flex items-center gap-2"></div>
+                </div>
+
+                <!-- Module Toggle Checkboxes -->
+                <div class="flex items-center gap-4 shrink-0">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Modules:</span>
+                    <label class="flex items-center gap-2 text-xs font-medium text-slate-200 cursor-pointer select-none py-1">
+                        <input type="checkbox" id="toggleTides" checked onchange="toggleModule('tides')" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-cyan-500 w-4 h-4">
+                        <span>Tides</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-xs font-medium text-slate-200 cursor-pointer select-none py-1">
+                        <input type="checkbox" id="toggleWeather" checked onchange="toggleModule('weather')" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-cyan-500 w-4 h-4">
+                        <span>Weather</span>
+                    </label>
+                </div>
+
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full flex flex-col gap-6">
+
+        <!-- Notification Banner -->
+        <div id="statusBanner" class="hidden rounded-xl p-4 text-sm border flex items-center justify-between shadow-lg">
+            <div id="statusBannerText" class="flex items-center gap-2.5 font-medium"></div>
+            <button onclick="hideBanner()" class="text-slate-400 hover:text-white px-2 py-1"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Active City Header & Current Weather Overview Bar -->
+        <section id="currentWeatherSection" class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                
+                <!-- City Title & Coordinates -->
+                <div class="flex items-start gap-4">
+                    <div id="currentWeatherIcon" class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center text-3xl text-cyan-400 shadow-inner shrink-0">
+                        <i class="fa-solid fa-sun"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <h2 id="cityNameDisplay" class="text-2xl font-bold text-white tracking-tight">Matlacha, FL</h2>
+                            <button id="saveFavoriteBtn" onclick="toggleFavoriteCurrentCity()" title="Pin City to Quick Hubs" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-all">
+                                <i id="saveFavoriteIcon" class="fa-regular fa-bookmark text-cyan-400"></i>
+                                <span id="saveFavoriteText">Save Hub</span>
+                            </button>
+                            <span id="coastalBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-400/30"><i class="fa-solid fa-water text-[10px] mr-1"></i> Coastal Station</span>
+                        </div>
+                        <p id="cityCoordsDisplay" class="text-xs text-slate-400 mt-1">Lat: 26.6277° N, Lon: -82.0729° W • Local Time: --</p>
+                        <p id="weatherConditionText" class="text-sm font-medium text-slate-300 mt-1">Loading live atmospheric conditions...</p>
+                    </div>
+                </div>
+
+                <!-- Numerical Metrics Grid (Current Temp, Rain %, Humidity %, Wind, Cloud Cover) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                    <!-- Temperature Card -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col justify-center">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-temperature-half text-cyan-400"></i> Temperature</span>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="currentTempDisplay" class="text-2xl font-bold text-white">--°</span>
+                            <span id="currentFeelsLike" class="text-xs text-slate-400">Feels --°</span>
+                        </div>
+                    </div>
+
+                    <!-- Precipitation Probability Card -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col justify-center">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-cloud-rain text-blue-400"></i> Rain Chance</span>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="currentPrecipDisplay" class="text-2xl font-bold text-blue-400">--%</span>
+                            <span class="text-xs text-slate-400">Probability</span>
+                        </div>
+                    </div>
+
+                    <!-- Relative Humidity Card -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col justify-center">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-droplet text-sky-400"></i> Humidity</span>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="currentHumidityDisplay" class="text-2xl font-bold text-sky-300">--%</span>
+                            <span id="currentCloudCover" class="text-xs text-slate-400">Cloud --%</span>
+                        </div>
+                    </div>
+
+                    <!-- Wind Speed Card -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col justify-center">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-wind text-teal-400"></i> Wind Speed</span>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="currentWindDisplay" class="text-2xl font-bold text-teal-300">--</span>
+                            <span id="currentWindDir" class="text-xs text-slate-400">--</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Tides Module Section -->
+        <section id="tidesModuleSection" class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md flex flex-col gap-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-water text-cyan-400"></i> 48-Hour Interactive Tide Curve & Extremes
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Harmonic astronomical tide predictions with real-time elevation marker & upcoming peaks</p>
+                </div>
+                <!-- Next Tide Highlight Pill -->
+                <div id="nextTideSummaryPill" class="bg-cyan-950/60 border border-cyan-800/60 rounded-xl px-4 py-2 flex items-center gap-3 text-xs">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <span id="nextTideText" class="font-medium text-cyan-200">Calculating next tide peak...</span>
+                </div>
+            </div>
+
+            <!-- Tide Chart Canvas Container -->
+            <div class="relative w-full h-72 sm:h-80 bg-slate-950/50 rounded-xl border border-slate-800/80 p-3 flex items-center justify-center">
+                <canvas id="tideChartCanvas"></canvas>
+            </div>
+
+            <!-- Tide High/Low Extremes Table/Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="tideExtremesGrid">
+                <!-- Dynamically populated tide peaks -->
+            </div>
+        </section>
+
+        <!-- Weather Module Section -->
+        <section id="weatherModuleSection" class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 shadow-xl backdrop-blur-md flex flex-col gap-5">
+            <div class="border-b border-slate-800 pb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-sun text-amber-400"></i> 24-Hour Hourly Weather Forecast & Precipitation %
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Temperature trend, rain probability percentage bars, and atmospheric metrics hour by hour</p>
+            </div>
+
+            <!-- Hourly Horizontal Timeline Cards -->
+            <div id="hourlyTimelineContainer" class="flex gap-3 overflow-x-auto custom-scrollbar pb-2 pt-1">
+                <!-- Populated dynamically -->
+            </div>
+
+            <!-- 8:00 AM & 3:00 PM Daily Checkpoints Spotlight -->
+            <div class="border-t border-slate-800/80 pt-4 mt-1">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i class="fa-regular fa-clock text-cyan-400"></i> Daily Checkpoints (8:00 AM & 3:00 PM)
+                </h4>
+                <div id="checkpointWeatherContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <!-- Live Doppler Radar External Link Button -->
+                <div class="mt-4 pt-4 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span class="text-xs text-slate-400">Need real-time storm tracking and precipitation sweeps for <strong id="radarCityLabel" class="text-slate-200">Matlacha, FL</strong>?</span>
+                    <a id="liveRadarLinkBtn" href="https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTgyLjA3MjksMjYuNjI3N10sImxvY2F0aW9uIjpbLTgyLjA3MjksMjYuNjI3N10sInpvb20iOjh9fQ==" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 transition-all">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                        <span>Open Live Doppler Radar</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-80"></i>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-900/50 py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+            <p>TideCast Mobile & Desktop App &bull; Powered by Open-Meteo</p>
+            <div class="flex items-center gap-4">
+                <button onclick="triggerAppInstall()" class="text-cyan-400 hover:underline">Install App / Add to Home Screen</button>
+                <span>&bull;</span>
+                <span>Harmonic Tide Engine</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Mobile Home Screen Installation Instructions Modal -->
+    <div id="mobileInstallModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Run Standalone on Your Phone</h3>
+                </div>
+                <button onclick="closeMobileInstallModal()" class="text-slate-400 hover:text-white p-1.5"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+                TideCast is configured as a standalone Progressive Web App (PWA). Add it to your phone's home screen to launch full-screen with its own wave icon and zero browser bars:
+            </p>
+            <div class="space-y-3 text-xs">
+                <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5">
+                    <div class="font-bold text-cyan-300 mb-1 flex items-center gap-1.5">
+                        <i class="fa-brands fa-apple text-sm"></i> iPhone & iPad (Safari)
+                    </div>
+                    <p class="text-slate-400">1. Tap the <strong class="text-slate-200">Share</strong> icon (<i class="fa-solid fa-arrow-up-from-bracket text-cyan-400"></i>) at the bottom of Safari.<br>2. Scroll down and tap <strong class="text-slate-200">"Add to Home Screen"</strong>.<br>3. Tap <strong class="text-slate-200">Add</strong> in the top right corner.</p>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5">
+                    <div class="font-bold text-emerald-300 mb-1 flex items-center gap-1.5">
+                        <i class="fa-brands fa-android text-sm"></i> Android (Chrome)
+                    </div>
+                    <p class="text-slate-400">1. Tap the <strong class="text-slate-200">three-dot menu</strong> (<i class="fa-solid fa-ellipsis-vertical text-emerald-400"></i>) in the top right.<br>2. Tap <strong class="text-slate-200">"Add to Home screen"</strong> or <strong class="text-slate-200">"Install app"</strong>.<br>3. Confirm to place TideCast on your home screen.</p>
+                </div>
+                <div class="bg-amber-950/40 border border-amber-500/30 rounded-xl p-3 text-amber-200/90">
+                    <strong class="text-amber-300"><i class="fa-solid fa-circle-info mr-1"></i> Tip for Android Chrome:</strong> Make sure you open this file from a web link (<code>https://...</code> such as Netlify Drop or GitHub Pages) rather than a local <code>file://</code> folder so Chrome enables native home screen installation.
+                </div>
+            </div>
+            <button onclick="closeMobileInstallModal()" class="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg transition-all mt-1">Got It</button>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        // Native Android Chrome Install Prompt & Service Worker Setup
+        let deferredInstallPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            // Highlight install buttons when native prompt is ready
+            const mobBtn = document.getElementById('mobileInstallBtn');
+            const deskBtn = document.getElementById('desktopInstallBtn');
+            if (mobBtn) mobBtn.classList.add('bg-cyan-600', 'text-white', 'border-cyan-400');
+            if (deskBtn) deskBtn.classList.add('bg-cyan-600', 'text-white', 'border-cyan-400');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            showBanner('TideCast installed to your device home screen!');
+            setTimeout(hideBanner, 3500);
+        });
+
+        async function triggerAppInstall() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                const { outcome } = await deferredInstallPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    deferredInstallPrompt = null;
+                }
+            } else {
+                openMobileInstallModal();
+            }
+        }
+
+        // Register Inline Service Worker (Required by Android Chrome for PWA Installability)
+        (function registerInlineServiceWorker() {
+            try {
+                if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+                    const swCode = `
+                        const CACHE_NAME = 'tidecast-v1';
+                        self.addEventListener('install', (event) => {
+                            self.skipWaiting();
+                        });
+                        self.addEventListener('activate', (event) => {
+                            event.waitUntil(self.clients.claim());
+                        });
+                        self.addEventListener('fetch', (event) => {
+                            event.respondWith(
+                                fetch(event.request).catch(() => caches.match(event.request))
+                            );
+                        });
+                    `;
+                    const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(swBlob);
+                    navigator.serviceWorker.register(swUrl).catch(() => {});
+                }
+            } catch (e) {
+                console.warn('Service worker registration skipped:', e);
+            }
+        })();
+
+        // Register Dynamic Web App Manifest for Standalone PWA Installation
+        (function setupWebAppManifest() {
+            try {
+                const iconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2306b6d4'/%3E%3Cstop offset='100%25' stop-color='%232563eb'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Cpath d='M96 290c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56zm0-92c40-36 80-36 120 0s80 36 120 0 80-36 80 0v56c-40-36-80-36-120 0s-80 36-120 0-80-36-80 0v-56z' fill='%23ffffff'/%3E%3C/svg%3E";
+                const manifest = {
+                    name: "TideCast - Coastal Tides & Hourly Weather",
+                    short_name: "TideCast",
+                    description: "Real-time coastal tide charts, 8 AM / 3 PM checkpoints, and hourly weather forecasts.",
+                    start_url: window.location.href,
+                    scope: "./",
+                    display: "standalone",
+                    background_color: "#020617",
+                    theme_color: "#020617",
+                    orientation: "portrait-primary",
+                    icons: [
+                        { src: iconSvg, sizes: "192x192", type: "image/svg+xml", purpose: "any" },
+                        { src: iconSvg, sizes: "512x512", type: "image/svg+xml", purpose: "maskable" }
+                    ]
+                };
+                const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+                const manifestUrl = URL.createObjectURL(blob);
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = manifestUrl;
+                document.head.appendChild(link);
+            } catch (e) {
+                console.warn('Manifest setup skipped:', e);
+            }
+        })();
+
+        // Global Application State
+        const state = {
+            city: 'Matlacha',
+            lat: 26.6277,
+            lon: -82.0729,
+            displayName: 'Matlacha, FL',
+            units: 'imperial',
+            isCoastal: true,
+            weatherData: null,
+            marineData: null,
+            tideChartInstance: null,
+            savedHubs: [],
+            modules: {
+                tides: true,
+                weather: true
+            }
+        };
+
+        // Load Saved Preferences (Units, Last City, Favorite Hubs) from localStorage
+        function loadSavedPreferences() {
+            try {
+                const savedUnits = localStorage.getItem('tidecast_units');
+                if (savedUnits === 'metric' || savedUnits === 'imperial') {
+                    state.units = savedUnits;
+                }
+                const savedHubsRaw = localStorage.getItem('tidecast_saved_hubs');
+                if (savedHubsRaw) {
+                    state.savedHubs = JSON.parse(savedHubsRaw) || [];
+                }
+                const lastCityRaw = localStorage.getItem('tidecast_last_city');
+                if (lastCityRaw) {
+                    const parsed = JSON.parse(lastCityRaw);
+                    if (parsed && parsed.displayName && typeof parsed.lat === 'number' && typeof parsed.lon === 'number') {
+                        state.city = parsed.city || parsed.displayName;
+                        state.lat = parsed.lat;
+                        state.lon = parsed.lon;
+                        state.displayName = parsed.displayName;
+                    }
+                }
+            } catch (e) {
+                console.warn('LocalStorage read skipped:', e);
+            }
+            renderSavedHubsBar();
+        }
+
+        function saveLastCityPreference() {
+            try {
+                localStorage.setItem('tidecast_last_city', JSON.stringify({
+                    city: state.city,
+                    lat: state.lat,
+                    lon: state.lon,
+                    displayName: state.displayName
+                }));
+            } catch (e) {}
+        }
+
+        // Toggle Current City as a Saved Favorite Hub
+        function toggleFavoriteCurrentCity() {
+            const idx = state.savedHubs.findIndex(h => h.displayName === state.displayName);
+            if (idx >= 0) {
+                state.savedHubs.splice(idx, 1);
+            } else {
+                state.savedHubs.push({
+                    city: state.city,
+                    lat: state.lat,
+                    lon: state.lon,
+                    displayName: state.displayName
+                });
+            }
+            try {
+                localStorage.setItem('tidecast_saved_hubs', JSON.stringify(state.savedHubs));
+            } catch (e) {}
+            renderSavedHubsBar();
+            updateFavoriteButtonUI();
+        }
+
+        function updateFavoriteButtonUI() {
+            const btnIcon = document.getElementById('saveFavoriteIcon');
+            const btnText = document.getElementById('saveFavoriteText');
+            if (!btnIcon || !btnText) return;
+            const isSaved = state.savedHubs.some(h => h.displayName === state.displayName);
+            if (isSaved) {
+                btnIcon.className = "fa-solid fa-bookmark text-amber-400";
+                btnText.textContent = "Saved";
+            } else {
+                btnIcon.className = "fa-regular fa-bookmark text-cyan-400";
+                btnText.textContent = "Save Hub";
+            }
+        }
+
+        function renderSavedHubsBar() {
+            const container = document.getElementById('customSavedHubs');
+            if (!container) return;
+            container.innerHTML = '';
+            state.savedHubs.forEach(hub => {
+                const btn = document.createElement('button');
+                btn.className = "px-3 py-1.5 rounded-lg bg-amber-950/40 hover:bg-amber-900/50 border border-amber-500/40 text-xs font-medium text-amber-200 transition-all shrink-0 flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-bookmark text-[10px] text-amber-400"></i> <span>${hub.displayName}</span>`;
+                btn.onclick = () => loadPresetCity(hub.city, hub.lat, hub.lon, hub.displayName);
+                container.appendChild(btn);
+            });
+        }
+
+        // GPS Device Geolocation ("Near Me" Button)
+        function locateMyDevice() {
+            if (!navigator.geolocation) {
+                showBanner('GPS geolocation is not supported on this browser/device.', true);
+                return;
+            }
+            const gpsBtn = document.getElementById('gpsLocateBtn');
+            if (gpsBtn) gpsBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span class="hidden sm:inline text-xs font-semibold">Locating...</span>`;
+            showBanner('Detecting your device GPS coordinates...');
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    let resolvedName = `My Location (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
+
+                    try {
+                        // Reverse geocode via Open-Meteo or Nominatim-free lookup if available
+                        const revRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+                        if (revRes.ok) {
+                            const revData = await revRes.json();
+                            const cityPart = revData.city || revData.locality || revData.principalSubdivision;
+                            const statePart = revData.principalSubdivisionCode ? revData.principalSubdivisionCode.split('-').pop() : revData.countryCode;
+                            if (cityPart) {
+                                resolvedName = statePart ? `${cityPart}, ${statePart}` : cityPart;
+                            }
+                        }
+                    } catch (e) {}
+
+                    if (gpsBtn) gpsBtn.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> <span class="hidden sm:inline text-xs font-semibold">Near Me</span>`;
+                    document.getElementById('citySearchInput').value = resolvedName;
+                    loadCityDashboard(resolvedName, lat, lon, resolvedName);
+                },
+                (err) => {
+                    if (gpsBtn) gpsBtn.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> <span class="hidden sm:inline text-xs font-semibold">Near Me</span>`;
+                    showBanner('Unable to access GPS location. Please allow location permissions or search manually.', true);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        // Mobile Installation Modal Controls
+        function openMobileInstallModal() {
+            const modal = document.getElementById('mobileInstallModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeMobileInstallModal() {
+            const modal = document.getElementById('mobileInstallModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        // Notification Banner Helpers
+        function showBanner(msg, isError = false) {
+            const banner = document.getElementById('statusBanner');
+            const text = document.getElementById('statusBannerText');
+            if (!banner || !text) return;
+            banner.classList.remove('hidden', 'bg-cyan-950/80', 'border-cyan-800', 'text-cyan-200', 'bg-red-950/80', 'border-red-800', 'text-red-200');
+            if (isError) {
+                banner.classList.add('bg-red-950/80', 'border-red-800', 'text-red-200');
+                text.innerHTML = `<i class="fa-solid fa-circle-exclamation text-red-400"></i> <span>${msg}</span>`;
+            } else {
+                banner.classList.add('bg-cyan-950/80', 'border-cyan-800', 'text-cyan-200');
+                text.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-cyan-400"></i> <span>${msg}</span>`;
+            }
+        }
+
+        function hideBanner() {
+            const banner = document.getElementById('statusBanner');
+            if (banner) banner.classList.add('hidden');
+        }
+
+        // Unit Toggle Handler
+        function setUnits(newUnit) {
+            state.units = newUnit;
+            try { localStorage.setItem('tidecast_units', newUnit); } catch (e) {}
+            if (newUnit === 'imperial') {
+                document.getElementById('unitImperialBtn').className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 text-white shadow transition-all";
+                document.getElementById('unitMetricBtn').className = "px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all";
+            } else {
+                document.getElementById('unitMetricBtn').className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 text-white shadow transition-all";
+                document.getElementById('unitImperialBtn').className = "px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all";
+            }
+            if (state.weatherData && state.marineData) {
+                renderHeaderAndCurrentWeather();
+                renderTideChart();
+                renderWeatherModule();
+            }
+        }
+
+        // Module Checkbox Toggle
+        function toggleModule(moduleName) {
+            state.modules[moduleName] = document.getElementById(`toggle${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`).checked;
+            const section = document.getElementById(`${moduleName}ModuleSection`);
+            if (section) {
+                if (state.modules[moduleName]) {
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+        }
+
+        // Preset Hub Click Handler
+        function loadPresetCity(name, lat, lon, displayName) {
+            state.city = name;
+            state.lat = lat;
+            state.lon = lon;
+            state.displayName = displayName;
+            document.getElementById('citySearchInput').value = displayName;
+            loadCityDashboard(name, lat, lon, displayName);
+        }
+
+        // Geocoding Autocomplete
+        function initSearchAutocomplete() {
+            const input = document.getElementById('citySearchInput');
+            const box = document.getElementById('suggestionsBox');
+            let timeout = null;
+
+            input.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                clearTimeout(timeout);
+                if (query.length < 2) {
+                    box.classList.add('hidden');
+                    return;
+                }
+                timeout = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+                        const data = await res.json();
+                        if (data && data.results && data.results.length > 0) {
+                            box.innerHTML = '';
+                            data.results.forEach(r => {
+                                const nameStr = `${r.name}, ${r.admin1 || r.country || ''} (${r.country || ''})`;
+                                const div = document.createElement('div');
+                                div.className = "px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer flex items-center justify-between border-b border-slate-800/50 last:border-none";
+                                div.innerHTML = `<span><i class="fa-solid fa-location-dot text-cyan-400 mr-2"></i> ${nameStr}</span> <span class="text-slate-500">${r.latitude.toFixed(2)}°, ${r.longitude.toFixed(2)}°</span>`;
+                                div.onclick = () => {
+                                    box.classList.add('hidden');
+                                    input.value = nameStr;
+                                    loadCityDashboard(r.name, r.latitude, r.longitude, nameStr);
+                                };
+                                box.appendChild(div);
+                            });
+                            box.classList.remove('hidden');
+                        } else {
+                            box.classList.add('hidden');
+                        }
+                    } catch (err) {
+                        console.error('Geocoding error:', err);
+                    }
+                }, 300);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !box.contains(e.target)) {
+                    box.classList.add('hidden');
+                }
+            });
+        }
+
+        // Main Data Loader
+        async function loadCityDashboard(cityName, lat, lon, displayName) {
+            state.city = cityName;
+            state.lat = lat;
+            state.lon = lon;
+            state.displayName = displayName;
+            saveLastCityPreference();
+            updateFavoriteButtonUI();
+
+            document.getElementById('cityNameDisplay').textContent = displayName;
+            document.getElementById('cityCoordsDisplay').textContent = `Lat: ${lat.toFixed(4)}° N, Lon: ${lon.toFixed(4)}° W • Loading live telemetry...`;
+            
+            // Update Live Doppler Radar link to center on the selected city coordinates
+            const radarCityLabel = document.getElementById('radarCityLabel');
+            const liveRadarLinkBtn = document.getElementById('liveRadarLinkBtn');
+            if (radarCityLabel) radarCityLabel.textContent = displayName;
+            if (liveRadarLinkBtn) {
+                const radarSettings = btoa(JSON.stringify({
+                    agenda: {
+                        id: "weather",
+                        center: [Number(lon.toFixed(4)), Number(lat.toFixed(4))],
+                        location: [Number(lon.toFixed(4)), Number(lat.toFixed(4))],
+                        zoom: 8
+                    }
+                }));
+                liveRadarLinkBtn.href = `https://radar.weather.gov/?settings=v1_${radarSettings}`;
+            }
+
+            showBanner(`Fetching live weather & tide telemetry for ${displayName}...`);
+
+            try {
+                // Fetch Weather Forecast (Current & Hourly)
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&timezone=auto&forecast_days=2`;
+                
+                // Fetch Marine Data (Sea Level MSL)
+                const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&forecast_days=2`;
+
+                const [weatherRes, marineRes] = await Promise.all([
+                    fetch(weatherUrl),
+                    fetch(marineUrl).catch(() => null)
+                ]);
+
+                if (!weatherRes.ok) throw new Error('Failed to fetch weather forecast data.');
+                state.weatherData = await weatherRes.json();
+
+                let marineJson = null;
+                if (marineRes && marineRes.ok) {
+                    marineJson = await marineRes.json();
+                }
+
+                // Check if marine sea level data is valid (coastal check)
+                if (marineJson && marineJson.hourly && marineJson.hourly.sea_level_height_msl) {
+                    const validHeights = marineJson.hourly.sea_level_height_msl.filter(v => v !== null);
+                    if (validHeights.length > 5) {
+                        state.marineData = marineJson;
+                        state.isCoastal = true;
+                        document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-water text-[10px] mr-1"></i> Coastal Station`;
+                        document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-400/30";
+                    } else {
+                        state.marineData = generateHarmonicTides(lat, lon, state.weatherData.hourly.time);
+                        state.isCoastal = false;
+                        document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-mountain-sun text-[10px] mr-1"></i> Inland Location (Harmonic Tidal Model)`;
+                        document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-400/30";
+                    }
+                } else {
+                    state.marineData = generateHarmonicTides(lat, lon, state.weatherData.hourly.time);
+                    state.isCoastal = false;
+                    document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-mountain-sun text-[10px] mr-1"></i> Inland Location (Harmonic Tidal Model)`;
+                    document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-400/30";
+                }
+
+                // Render all modules
+                renderHeaderAndCurrentWeather();
+                renderTideChart();
+                renderWeatherModule();
+
+                hideBanner();
+            } catch (err) {
+                console.error(err);
+                showBanner(`Error loading data: ${err.message}`, true);
+            }
+        }
+
+        // Harmonic Tide Fallback Generator for Inland / API fallback
+        function generateHarmonicTides(lat, lon, timeArray) {
+            const sea_level_height_msl = [];
+            const baseHeight = 1.2 + (Math.abs(lat) % 2);
+            for (let i = 0; i < timeArray.length; i++) {
+                const t = new Date(timeArray[i]).getTime() / 3600000; // hours
+                // Principal lunar semi-diurnal (M2 ~ 12.42h) + solar semi-diurnal (S2 ~ 12h) + diurnal (K1 ~ 23.93h)
+                const m2 = 1.1 * Math.cos((2 * Math.PI * t) / 12.42);
+                const s2 = 0.5 * Math.cos((2 * Math.PI * t) / 12.0);
+                const k1 = 0.3 * Math.sin((2 * Math.PI * t) / 23.93);
+                sea_level_height_msl.push(parseFloat((baseHeight + m2 + s2 + k1).toFixed(2)));
+            }
+            return {
+                hourly: {
+                    time: timeArray,
+                    sea_level_height_msl: sea_level_height_msl
+                }
+            };
+        }
+
+        // Weather Code Decoder
+        function decodeWeatherCode(code) {
+            const map = {
+                0: { text: 'Clear Sky', icon: 'fa-sun', color: 'text-amber-400' },
+                1: { text: 'Mainly Clear', icon: 'fa-cloud-sun', color: 'text-amber-300' },
+                2: { text: 'Partly Cloudy', icon: 'fa-cloud-sun', color: 'text-sky-300' },
+                3: { text: 'Overcast', icon: 'fa-cloud', color: 'text-slate-400' },
+                45: { text: 'Foggy', icon: 'fa-smog', color: 'text-slate-400' },
+                51: { text: 'Light Drizzle', icon: 'fa-cloud-rain', color: 'text-blue-300' },
+                61: { text: 'Light Rain', icon: 'fa-cloud-rain', color: 'text-blue-400' },
+                63: { text: 'Moderate Rain', icon: 'fa-cloud-showers-heavy', color: 'text-blue-500' },
+                65: { text: 'Heavy Rain', icon: 'fa-cloud-showers-heavy', color: 'text-indigo-400' },
+                95: { text: 'Thunderstorm', icon: 'fa-cloud-bolt', color: 'text-amber-400' }
+            };
+            return map[code] || { text: 'Fair Conditions', icon: 'fa-cloud-sun', color: 'text-cyan-400' };
+        }
+
+        function getWindDirection(deg) {
+            const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            return dirs[Math.round((deg % 360) / 22.5)] || 'N';
+        }
+
+        // Render Header & Current Weather
+        function renderHeaderAndCurrentWeather() {
+            const cur = state.weatherData.current;
+            const decoded = decodeWeatherCode(cur.weather_code);
+
+            document.getElementById('weatherConditionText').textContent = decoded.text;
+            
+            const iconContainer = document.getElementById('currentWeatherIcon');
+            iconContainer.innerHTML = `<i class="fa-solid ${decoded.icon} ${decoded.color}"></i>`;
+
+            let temp = cur.temperature_2m;
+            let feels = cur.apparent_temperature;
+            let wind = cur.wind_speed_10m;
+            let unitTemp = '°C';
+            let unitWind = 'km/h';
+
+            if (state.units === 'imperial') {
+                temp = (temp * 9/5) + 32;
+                feels = (feels * 9/5) + 32;
+                wind = wind * 0.621371;
+                unitTemp = '°F';
+                unitWind = 'mph';
+            }
+
+            document.getElementById('currentTempDisplay').textContent = `${Math.round(temp)}${unitTemp}`;
+            document.getElementById('currentFeelsLike').textContent = `Feels ${Math.round(feels)}${unitTemp}`;
+            
+            // Numerical percentages
+            const precipProbNow = state.weatherData.hourly.precipitation_probability[0] || 0;
+            document.getElementById('currentPrecipDisplay').textContent = `${precipProbNow}%`;
+            document.getElementById('currentHumidityDisplay').textContent = `${cur.relative_humidity_2m}%`;
+            document.getElementById('currentCloudCover').textContent = `Cloud ${cur.cloud_cover}%`;
+            
+            document.getElementById('currentWindDisplay').textContent = `${wind.toFixed(1)} ${unitWind}`;
+            document.getElementById('currentWindDir').textContent = getWindDirection(cur.wind_direction_10m);
+        }
+
+        // Render Tide Chart & Extremes
+        function renderTideChart() {
+            const marine = state.marineData.hourly;
+            const times = marine.time.slice(0, 48); // 48 hours
+            let heights = marine.sea_level_height_msl.slice(0, 48);
+
+            const isImp = state.units === 'imperial';
+            // Convert meters to feet if imperial (1m = 3.28084 ft)
+            if (isImp) {
+                heights = heights.map(h => h !== null ? h * 3.28084 : null);
+            }
+            const unitLabel = isImp ? 'Feet (ft)' : 'Meters (m)';
+
+            const labels = times.map(t => {
+                const date = new Date(t);
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            });
+
+            // Find High/Low Extremes
+            const extremes = [];
+            for (let i = 1; i < heights.length - 1; i++) {
+                if (heights[i] !== null && heights[i-1] !== null && heights[i+1] !== null) {
+                    if (heights[i] > heights[i-1] && heights[i] > heights[i+1]) {
+                        extremes.push({ type: 'High', time: new Date(times[i]), height: heights[i] });
+                    } else if (heights[i] < heights[i-1] && heights[i] < heights[i+1]) {
+                        extremes.push({ type: 'Low', time: new Date(times[i]), height: heights[i] });
+                    }
+                }
+            }
+
+            // Render Extremes Grid Cards
+            const grid = document.getElementById('tideExtremesGrid');
+            grid.innerHTML = '';
+            extremes.slice(0, 4).forEach(ex => {
+                const isHigh = ex.type === 'High';
+                const card = document.createElement('div');
+                card.className = "bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg ${isHigh ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'} flex items-center justify-center text-sm font-bold">
+                            <i class="fa-solid ${isHigh ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-semibold text-white block">${ex.type} Tide</span>
+                            <span class="text-[11px] text-slate-400">${ex.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}</span>
+                        </div>
+                    </div>
+                    <span class="text-base font-bold ${isHigh ? 'text-cyan-300' : 'text-blue-300'}">${ex.height.toFixed(2)} ${isImp ? 'ft' : 'm'}</span>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Update Next Tide Pill
+            const nowTime = new Date().getTime();
+            const nextEx = extremes.find(e => e.time.getTime() > nowTime) || extremes[0];
+            if (nextEx) {
+                document.getElementById('nextTideText').innerHTML = `Next <b>${nextEx.type} Tide</b> at <b>${nextEx.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</b> (${nextEx.height.toFixed(2)} ${isImp ? 'ft' : 'm'})`;
+            } else {
+                document.getElementById('nextTideText').textContent = `Tide cycle active`;
+            }
+
+            // Render Chart.js
+            const ctx = document.getElementById('tideChartCanvas').getContext('2d');
+            if (state.tideChartInstance) {
+                state.tideChartInstance.destroy();
+            }
+
+            state.tideChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Sea Level Height (${unitLabel})`,
+                        data: heights,
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#38bdf8',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: (context) => `Height: ${context.parsed.y.toFixed(2)} ${isImp ? 'ft' : 'm'}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 10 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            title: { display: true, text: unitLabel, color: '#94a3b8', font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Weather Module (24h Hourly Cards with Rain % Badges)
+        function renderWeatherModule() {
+            const h = state.weatherData.hourly;
+            const container = document.getElementById('hourlyTimelineContainer');
+            container.innerHTML = '';
+
+            const isImp = state.units === 'imperial';
+            const unitTemp = isImp ? '°F' : '°C';
+            const unitWind = isImp ? 'mph' : 'km/h';
+
+            // Show next 24 hours starting from current hour
+            const startIndex = 0; // or current hour index
+            for (let i = startIndex; i < startIndex + 24 && i < h.time.length; i++) {
+                const timeStr = new Date(h.time[i]).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                let temp = h.temperature_2m[i];
+                if (isImp) temp = (temp * 9/5) + 32;
+
+                const rainProb = h.precipitation_probability[i] || 0;
+                const humidity = h.relative_humidity_2m[i] || 0;
+                let wind = h.wind_speed_10m[i];
+                if (isImp) wind = wind * 0.621371;
+
+                const decoded = decodeWeatherCode(h.weather_code[i]);
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col items-center justify-between min-w-[110px] shrink-0 gap-2.5 shadow-inner";
+                card.innerHTML = `
+                    <span class="text-xs font-semibold text-slate-400">${timeStr}</span>
+                    <div class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-lg ${decoded.color}">
+                        <i class="fa-solid ${decoded.icon}"></i>
+                    </div>
+                    <span class="text-lg font-bold text-white">${Math.round(temp)}${unitTemp}</span>
+                    <div class="w-full bg-slate-900 rounded-lg p-1.5 flex flex-col gap-1 text-[11px]">
+                        <div class="flex justify-between items-center text-slate-300">
+                            <span class="text-slate-400"><i class="fa-solid fa-droplet text-blue-400 mr-1"></i> Rain</span>
+                            <span class="font-bold text-blue-300">${rainProb}%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div class="bg-blue-500 h-full rounded-full" style="width: ${rainProb}%"></div>
+                        </div>
+                    </div>
+                    <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                        <i class="fa-solid fa-wind text-teal-400"></i> ${wind.toFixed(0)} ${unitWind}
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+
+            // Populate 8:00 AM and 3:00 PM (15:00) Spotlight Cards
+            const checkpointContainer = document.getElementById('checkpointWeatherContainer');
+            if (checkpointContainer) {
+                checkpointContainer.innerHTML = '';
+                const targetHours = [8, 15]; // 8:00 AM and 3:00 PM
+
+                targetHours.forEach(targetHour => {
+                    // Find the next upcoming occurrence of targetHour (or today's if in the first 24 hours)
+                    let idx = -1;
+                    for (let i = 0; i < Math.min(24, h.time.length); i++) {
+                        if (new Date(h.time[i]).getHours() === targetHour) {
+                            idx = i;
+                            break;
+                        }
+                    }
+
+                    if (idx !== -1) {
+                        const dt = new Date(h.time[idx]);
+                        const labelTime = targetHour === 8 ? '8:00 AM Morning' : '3:00 PM Afternoon';
+                        const dateLabel = dt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                        let temp = h.temperature_2m[idx];
+                        if (isImp) temp = (temp * 9/5) + 32;
+
+                        const rainProb = h.precipitation_probability[idx] || 0;
+                        const humidity = h.relative_humidity_2m[idx] || 0;
+                        const cloudCover = h.cloud_cover[idx] || 0;
+                        let wind = h.wind_speed_10m[idx];
+                        if (isImp) wind = wind * 0.621371;
+                        const windDir = getWindDirection(h.wind_direction_10m[idx] || 0);
+
+                        const decoded = decodeWeatherCode(h.weather_code[idx]);
+
+                        const cpCard = document.createElement('div');
+                        cpCard.className = "bg-slate-950/70 border border-slate-800/90 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4";
+                        cpCard.innerHTML = `
+                            <div class="flex items-center gap-3.5">
+                                <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-2xl ${decoded.color} shrink-0">
+                                    <i class="fa-solid ${decoded.icon}"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-bold text-white">${labelTime}</span>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">${dateLabel}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 mt-0.5">${decoded.text}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-slate-800/80 pt-3 sm:pt-0">
+                                <div class="text-left sm:text-right">
+                                    <span class="text-2xl font-bold text-white block">${Math.round(temp)}${unitTemp}</span>
+                                    <span class="text-[11px] text-slate-400"><i class="fa-solid fa-wind text-teal-400 mr-1"></i>${wind.toFixed(0)} ${unitWind} ${windDir}</span>
+                                </div>
+                                <div class="flex flex-col gap-1.5 min-w-[95px] bg-slate-900/90 border border-slate-800 rounded-lg p-2 text-[11px]">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-400">Rain</span>
+                                        <span class="font-bold text-blue-300">${rainProb}%</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-400">Humidity</span>
+                                        <span class="font-semibold text-sky-300">${humidity}%</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-400">Clouds</span>
+                                        <span class="font-semibold text-slate-300">${cloudCover}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        checkpointContainer.appendChild(cpCard);
+                    }
+                });
+            }
+        }
+
+        // Initialize Dashboard on Window Load
+        window.onload = function () {
+            loadSavedPreferences();
+            setUnits(state.units);
+            initSearchAutocomplete();
+            loadCityDashboard(state.city, state.lat, state.lon, state.displayName);
+        };
+    </script>
+</body>
+</html>
