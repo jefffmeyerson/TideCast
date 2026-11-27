@@ -706,6 +706,14 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
+        // Format local date as YYYYMMDD for explicit 48-hour NOAA range queries
+        function formatNoaaDate(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}${m}${d}`;
+        }
+
         // Fetch Nearest Official NOAA CO-OPS Tide Prediction Station
         async function fetchNearestNoaaTideModel(lat, lon) {
             try {
@@ -734,9 +742,14 @@
                     return null;
                 }
 
-                // Request 48 hours of official 6-minute predictions AND official High/Low extremes in parallel
-                const curveUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=today&range=48&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=metric&interval=6&format=json`;
-                const hiloUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=today&range=48&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=metric&interval=hilo&format=json`;
+                // Request full 48+ hours starting from today using explicit begin_date & end_date
+                const now = new Date();
+                const endDay = new Date(now.getTime() + 48 * 3600000);
+                const beginStr = formatNoaaDate(now);
+                const endStr = formatNoaaDate(endDay);
+
+                const curveUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${beginStr}&end_date=${endStr}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=metric&interval=6&format=json`;
+                const hiloUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${beginStr}&end_date=${endStr}&station=${nearestStation.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=metric&interval=hilo&format=json`;
 
                 const [curveRes, hiloRes] = await Promise.all([fetch(curveUrl), fetch(hiloUrl)]);
                 if (!curveRes.ok || !hiloRes.ok) return null;
@@ -748,10 +761,17 @@
                     return null;
                 }
 
-                const curvePoints = curveJson.predictions.map(p => ({
+                // Slice strictly to a rolling 48-hour window from the current hour forward
+                const startCutoff = now.getTime() - 3600000;
+                const endCutoff = now.getTime() + 48 * 3600000;
+
+                const allCurvePoints = curveJson.predictions.map(p => ({
                     time: new Date(p.t.replace(' ', 'T')),
                     heightMeters: parseFloat(p.v)
                 }));
+
+                const filteredCurve = allCurvePoints.filter(pt => pt.time.getTime() >= startCutoff && pt.time.getTime() <= endCutoff);
+                const curvePoints = filteredCurve.length >= 24 ? filteredCurve : allCurvePoints.slice(0, 480);
 
                 const extremes = hiloJson.predictions.map(p => ({
                     type: p.type === 'H' ? 'High' : 'Low',
@@ -777,7 +797,7 @@
         // Build High-Resolution Interpolated Tide Model from Hourly Sea Level Data (for International / Inland locations)
         function buildInterpolatedTideModel(hourlyTimes, hourlyHeightsMeters, sourceLabel, isCoastalFlag) {
             const validPairs = [];
-            for (let i = 0; i < Math.min(50, hourlyTimes.length); i++) {
+            for (let i = 0; i < Math.min(49, hourlyTimes.length); i++) {
                 if (hourlyHeightsMeters[i] !== null && hourlyHeightsMeters[i] !== undefined) {
                     validPairs.push({
                         time: new Date(hourlyTimes[i]),
@@ -786,7 +806,7 @@
                 }
             }
 
-            // Use Catmull-Rom / cubic spline interpolation at 10-minute intervals so shallow or flat-topped peaks are never missed
+            // Use Catmull-Rom / cubic spline interpolation at 10-minute intervals across all 48 hours
             const curvePoints = [];
             for (let i = 0; i < validPairs.length - 1; i++) {
                 const p0 = validPairs[Math.max(0, i - 1)].heightMeters;
@@ -876,10 +896,10 @@
                 liveRadarLinkBtn.href = `https://radar.weather.gov/?settings=v1_${radarSettings}`;
             }
 
-            showBanner(`Fetching NOAA tides & hourly weather for ${displayName}...`);
+            showBanner(`Fetching 48-hour NOAA tides & hourly weather for ${displayName}...`);
 
             try {
-                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&timezone=auto&forecast_days=2`;
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m&timezone=auto&forecast_days=3`;
                 const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=sea_level_height_msl&timezone=auto&forecast_days=3`;
 
                 const [weatherRes, noaaModel, marineRes] = await Promise.all([
@@ -897,7 +917,7 @@
                     const distMi = (noaaModel.distanceKm * 0.621371).toFixed(1);
                     document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-water text-[10px] mr-1"></i> NOAA Station: ${noaaModel.stationName} (${distMi} mi)`;
                     document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-400/30";
-                    document.getElementById('tideStationSubtitle').textContent = `Official NOAA CO-OPS Station #${noaaModel.stationId} (${noaaModel.stationName}) • 6-minute curve & exact High/Low peaks`;
+                    document.getElementById('tideStationSubtitle').textContent = `Official NOAA CO-OPS Station #${noaaModel.stationId} (${noaaModel.stationName}) • 48-hour curve & exact High/Low peaks`;
                     document.getElementById('tideDatumLabel').textContent = `Datum: ${noaaModel.datum}`;
                 } else {
                     let marineJson = null;
@@ -910,7 +930,7 @@
                         state.isCoastal = true;
                         document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-water text-[10px] mr-1"></i> Coastal Marine Grid`;
                         document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-400/30";
-                        document.getElementById('tideStationSubtitle').textContent = `High-resolution interpolated coastal sea-level predictions & High/Low extremes`;
+                        document.getElementById('tideStationSubtitle').textContent = `48-hour interpolated coastal sea-level predictions & High/Low extremes`;
                         document.getElementById('tideDatumLabel').textContent = `Datum: MSL`;
                     } else {
                         const harmonicRaw = generateHarmonicTides(lat, lon, state.weatherData.hourly.time);
@@ -918,7 +938,7 @@
                         state.isCoastal = false;
                         document.getElementById('coastalBadge').innerHTML = `<i class="fa-solid fa-mountain-sun text-[10px] mr-1"></i> Inland Location (Harmonic Tidal Model)`;
                         document.getElementById('coastalBadge').className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-400/30";
-                        document.getElementById('tideStationSubtitle').textContent = `Harmonic astronomical tide model predictions`;
+                        document.getElementById('tideStationSubtitle').textContent = `48-hour harmonic astronomical tide model predictions`;
                         document.getElementById('tideDatumLabel').textContent = `Datum: MSL`;
                     }
                 }
@@ -1016,7 +1036,7 @@
             document.getElementById('currentWindDir').textContent = getWindDirection(cur.wind_direction_10m);
         }
 
-        // Render Tide Chart & Complete High/Low Extremes
+        // Render 48-Hour Tide Chart & Complete High/Low Extremes
         function renderTideChart() {
             const model = state.tideModel;
             if (!model || !model.curvePoints || model.curvePoints.length === 0) return;
@@ -1026,8 +1046,9 @@
             const unitShort = isImp ? 'ft' : 'm';
             const unitLabel = isImp ? 'Feet (ft)' : 'Meters (m)';
 
+            // Include short weekday + hour on X-axis labels so the full 48-hour span (Day 1 -> Day 2 -> Day 3) is crystal clear
             const labels = model.curvePoints.map(pt =>
-                pt.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                pt.time.toLocaleString([], { weekday: 'short', hour: 'numeric' })
             );
             const fullTimestamps = model.curvePoints.map(pt =>
                 pt.time.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -1039,7 +1060,6 @@
             grid.innerHTML = '';
 
             const nowTime = new Date().getTime();
-            // Show all extremes from 1 hour ago onward (up to 8 cards = full 48h cycle)
             const displayExtremes = model.extremes.filter(ex => ex.time.getTime() >= nowTime - 3600000).slice(0, 8);
             const extremesToRender = displayExtremes.length > 0 ? displayExtremes : model.extremes.slice(0, 8);
 
@@ -1056,7 +1076,7 @@
                         </div>
                         <div>
                             <span class="text-xs font-semibold text-white block">${ex.type} Tide</span>
-                            <span class="text-[11px] text-slate-400">${ex.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}</span>
+                            <span class="text-[11px] text-slate-400">${ex.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', weekday: 'short', month: 'short', day: 'numeric' })}</span>
                         </div>
                     </div>
                     <span class="text-base font-bold ${isHigh ? 'text-cyan-300' : 'text-blue-300'}">${heightVal.toFixed(2)} ${unitShort}</span>
@@ -1070,7 +1090,7 @@
                 const nextHeight = nextEx.heightMeters * factor;
                 document.getElementById('nextTideText').innerHTML = `Next <b>${nextEx.type} Tide</b> at <b>${nextEx.time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</b> (${nextHeight.toFixed(2)} ${unitShort})`;
             } else {
-                document.getElementById('nextTideText').textContent = `Tide cycle active`;
+                document.getElementById('nextTideText').textContent = `48-hour tide cycle active`;
             }
 
             // Render Chart.js
@@ -1119,11 +1139,11 @@
                     },
                     scales: {
                         x: {
-                            grid: { color: 'rgba(51, 65, 85, 0.2)' },
-                            ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 12 }
+                            grid: { color: 'rgba(51, 65, 85, 0.25)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 16, maxRotation: 0 }
                         },
                         y: {
-                            grid: { color: 'rgba(51, 65, 85, 0.2)' },
+                            grid: { color: 'rgba(51, 65, 85, 0.25)' },
                             ticks: { color: '#94a3b8', font: { size: 10 } },
                             title: { display: true, text: unitLabel, color: '#94a3b8', font: { size: 11 } }
                         }
